@@ -730,6 +730,40 @@
             }
         }
 
+       // --- NEW: Copy Prompt Text (Diperbaiki untuk lingkungan iFrame) ---
+        function copyPromptText(text) {
+            try {
+                // 1. Buat elemen textarea sementara
+                const tempInput = document.createElement('textarea');
+                tempInput.value = text;
+                
+                // Atur agar tidak terlihat tetapi dapat dipilih
+                tempInput.style.position = 'absolute';
+                tempInput.style.left = '-9999px';
+                
+                // 2. Tambahkan ke body, pilih isinya, dan eksekusi perintah salin
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                
+                // Mendukung perangkat seluler (jika memungkinkan)
+                tempInput.setSelectionRange(0, 99999); 
+                
+                const successful = document.execCommand('copy');
+                
+                // 3. Hapus elemen sementara
+                document.body.removeChild(tempInput);
+
+                if (successful) {
+                    displayMessage('success', 'Teks prompt berhasil disalin!');
+                } else {
+                    throw new Error('execCommand(\'copy\') gagal.');
+                }
+            } catch (err) {
+                console.error('Gagal menyalin. Metode document.execCommand(\'copy\') gagal.', err);
+                displayMessage('error', 'Gagal menyalin. Silakan salin secara manual.');
+            }
+        }
+		
         // =========================================================================
         // EDIT LOGIC
         // =========================================================================
