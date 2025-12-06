@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PROMPT ARCHIVE</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            bg: '#0f172a', // Slate 900
+                            card: '#1e293b', // Slate 800
+                            accent: '#06b6d4', // Cyan 500
+                            success: '#10b981', // Emerald 500
+                            danger: '#ef4444', // Red 500
+                            text: '#e2e8f0', // Slate 200
+                            muted: '#94a3b8' // Slate 400
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Supabase & Utils -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* cyber-bg */
+            color: #e2e8f0;
+        }
+        
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; 
+        }
+
+        /* Utilities */
+        .line-clamp-3 {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Glass effect for overlays */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Drag & Drop Styles */
+        .drop-zone-active {
+            border-color: #06b6d4 !important;
+            background-color: rgba(6, 182, 212, 0.1) !important;
+        }
+
+        /* Styling for editable fields */
+        .editable-field {
+            background-color: #0f172a !important; /* Darker background for contrast */
+            border-color: #06b6d4 !important; /* Accent border */
+            box-shadow: 0 0 5px rgba(6, 182, 212, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- KOLOM KIRI: Judul dan Panel Upload (Fixed/Sticky pada Desktop) -->
+        <div class="lg:col-span-4 space-y-6 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto lg:sticky lg:top-8 lg:pb-8">
+            <div class="lg:pr-4"> 
+                
+                <!-- Header -->
+                <div class="mb-8 hidden lg:block">
+                    <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400 tracking-tight">
+                        PROMPT ARCHIVE
+                    </h1>
+                    <p class="text-cyber-muted mt-2 text-base">Database Koleksi Generasi AI</p> 
+                </div>
+
+                <!-- Card Upload -->
+                <div class="glass-panel rounded-xl p-6 shadow-2xl relative overflow-hidden group">
+                    <h2 class="text-2xl font-bold text-white mb-6 flex items-center">
+                        <svg class="w-6 h-6 mr-3 text-emerald-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.98l-.81-1.22A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2z"/>
+                            <path d="m10 12 2 2 4-4"/>
+                        </svg>
+                        Input Baru
+                    </h2>
+
+                    <!-- Preview File Count -->
+                    <div id="input-preview-card" class="hidden mb-4 bg-slate-900 rounded-lg border border-slate-700 p-3 text-center">
+                        <p class="text-xs font-bold text-slate-500 uppercase">File Terpilih</p>
+                        <p id="input-file-count" class="text-3xl font-extrabold text-cyan-400">0</p>
+                    </div>
+
+                    <div class="space-y-5">
+                        <!-- Prompt Input -->
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-400 mb-2">Prompt (Wajib)</label>
+                            <textarea id="prompt-text" rows="4" 
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition placeholder-slate-600"
+                                placeholder="Tulis deskripsi prompt..."></textarea>
+                        </div>
+                        
+                        <!-- Tags Input -->
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-400 mb-2">Tags (Pisahkan dengan koma)</label>
+                            <input type="text" id="prompt-tags" 
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-white focus:ring-2 focus:ring-cyan-500 outline-none transition placeholder-slate-600"
+                                placeholder="misalnya: cyberpunk, 3d, niji">
+                        </div>
+
+                        <!-- Title Input -->
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-400 mb-2">Judul (Opsional)</label>
+                            <input type="text" id="prompt-title" 
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-white focus:ring-2 focus:ring-cyan-500 outline-none transition placeholder-slate-600"
+                                placeholder="Judul singkat...">
+                        </div>
+
+                        <!-- File Input & Drop Zone -->
+                        <div id="drop-zone" class="relative group">
+                            <input type="file" id="image-file" accept="image/*" multiple onchange="handleFileInputChange(this)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                            <div id="file-label" class="border-2 border-dashed border-slate-700 rounded-lg p-4 text-center text-slate-400 transition group-hover:border-cyan-500 group-hover:text-cyan-400">
+                                <span class="text-sm font-medium">Klik untuk Pilih Gambar (Bisa Pilih Banyak)</span>
+                                <p class="text-xs mt-1">atau Seret & Lepas Gambar ke Sini</p>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <button id="upload-button" disabled
+                            class="w-full py-3 bg-gradient-to-r from-cyan-600 to-emerald-600 text-white font-bold rounded-lg shadow-lg hover:shadow-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition transform hover:-translate-y-0.5">
+                            <span id="button-text">SIMPAN DATA</span>
+                            <svg id="loading-spinner" class="animate-spin ml-2 h-5 w-5 text-white inline hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KOLOM KANAN: Daftar Prompt (Scrollable) -->
+        <div class="lg:col-span-8 space-y-3">
+            
+            <!-- Search Input (Sticky) -->
+            <div class="sticky top-0 z-20 p-1 -mx-2 md:-mx-4 bg-cyber-bg/90 backdrop-blur-sm border-b border-slate-800">
+                <input type="text" id="search-input" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-white focus:ring-2 focus:ring-cyan-500 outline-none transition placeholder-slate-600"
+                    placeholder="Cari prompt berdasarkan judul, isi, atau tag...">
+            </div>
+
+            <!-- Kontainer Daftar Prompt -->
+            <div id="prompt-list-container" class="space-y-8">
+                <!-- Prompt Items akan di-inject di sini -->
+            </div>
+
+            <!-- Status & Loading -->
+            <div id="gallery-status" class="text-center text-cyber-muted italic py-10 hidden"></div>
+            
+            <div id="loading-indicator" class="hidden py-8 text-center">
+                <div class="inline-flex items-center px-4 py-2 bg-slate-800 rounded-full border border-slate-700 text-cyan-400">
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Memuat data...
+                </div>
+            </div>
+            
+            <!-- Infinite Scroll Trigger -->
+            <div id="observer-target" class="h-4 w-full"></div> 
+            <p id="end-message" class="hidden text-center text-slate-600 text-sm py-4 border-t border-slate-800 mt-8">--- Akhir dari Arsip ---</p>
+        </div>
+
+    </div>
+
+    <!-- MODAL KONFIRMASI -->
+    <div id="confirm-modal" class="modal-overlay hidden z-50 fixed inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div class="modal-content bg-slate-800 border border-slate-600 rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+            <h3 class="text-xl font-bold text-white mb-2 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-red-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                Konfirmasi Hapus
+            </h3>
+            <p id="confirm-msg" class="text-slate-300 mb-6 text-sm leading-relaxed"></p>
+            <div class="flex justify-end space-x-3">
+                <button id="cancel-delete-btn" class="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition text-sm font-medium">Batal</button>
+                <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium shadow-lg shadow-red-900/20">Ya, Hapus</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- MODAL PREVIEW GAMBAR -->
+    <div id="preview-modal" class="modal-overlay hidden z-50 fixed inset-0 flex items-center justify-center bg-black/90 backdrop-blur-md">
+        <div class="relative max-w-4xl w-full mx-4">
+            <button onclick="closePreviewModal()" class="absolute top-2 right-2 text-white bg-black/50 hover:bg-black/70 rounded-full p-2 z-10 transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            <img id="preview-image" src="" alt="Preview Gambar Penuh" class="max-h-[90vh] w-full object-contain rounded-xl shadow-2xl">
+            <div class="absolute bottom-0 w-full text-center p-3">
+                <a id="download-full-btn" href="#" download class="inline-flex items-center px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-medium rounded-lg transition shadow-lg shadow-cyan-900/40">
+                    <svg class="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" x2="12" y1="15" y2="3"/>
+                    </svg>
+                    Download Penuh
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT -->
+    <script>
+        // --- KONFIGURASI SUPABASE ---
+        const SUPABASE_URL = 'https://blgnsemdwyolktqbigfm.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJsZ25zZW1kd3lvbGt0cWJpZ2ZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MzY0MTQsImV4cCI6MjA4MDUxMjQxNH0.Kd0TtDzeA9M_25L01dc7rTLY2CHgtqIBih4TSqSybNU'; 
+        const BUCKET_NAME = 'prompt-images';
+        const STORAGE_FULL_PATH = 'public/full/'; 
+        const STORAGE_THUMB_PATH = 'public/thumbs/'; 
+
+        let supabaseClient;
+        
+        // --- STATE ---
+        const PAGE_SIZE = 6; 
+        let loadedCount = 0;
+        let isLoading = false;
+        let hasMore = true;
+        let allPromptsData = []; 
+        
+        // --- DOM ELEMENTS ---
+        const fileInput = document.getElementById('image-file');
+        const promptInput = document.getElementById('prompt-text');
+        const promptTitleInput = document.getElementById('prompt-title');
+        const promptTagsInput = document.getElementById('prompt-tags'); 
+        const uploadButton = document.getElementById('upload-button');
+        // const messageContainer = document.getElementById('message-container'); // HAPUS INI KARENA ELEMENNYA DIHAPUS
+        const promptListContainer = document.getElementById('prompt-list-container');
+        const dropZone = document.getElementById('drop-zone');
+        const inputFileCount = document.getElementById('input-file-count');
+        const searchInput = document.getElementById('search-input'); 
+        
+        // --- MODAL STATE ---
+        let deleteAction = null; 
+
+        // =========================================================================
+        // INITIALIZATION
+        // =========================================================================
+        window.onload = () => {
+            try {
+                // Inisialisasi Supabase
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log("Supabase Ready");
+                
+                // Set up event listeners
+                setupIntersectionObserver();
+                checkFormValidity();
+                setupDragAndDrop(); 
+                
+                // Add event listener for search
+                searchInput.addEventListener('input', filterPrompts); 
+                
+                // Load initial data
+                loadPrompts(); 
+            } catch (e) {
+                displayMessage('error', 'Gagal inisialisasi Supabase: ' + e.message);
+            }
+        };
+
+        // =========================================================================
+        // DATA FETCHING & FILTERING
+        // =========================================================================
+        async function loadPrompts() {
+            if (isLoading || !hasMore) return;
+            isLoading = true;
+            document.getElementById('loading-indicator').classList.remove('hidden');
+
+            const from = loadedCount;
+            const to = loadedCount + PAGE_SIZE - 1; 
+
+            try {
+                const { data: prompts, error } = await supabaseClient
+                    .from('prompts')
+                    .select('*, images(*)')
+                    .order('created_at', { ascending: false })
+                    .range(from, to); 
+
+                if (error) throw error;
+
+                if (prompts.length === 0) {
+                    hasMore = false;
+                    document.getElementById('end-message').classList.remove('hidden');
+                    if (loadedCount === 0) document.getElementById('gallery-status').textContent = "Belum ada koleksi prompt.";
+                } else {
+                    prompts.forEach(prompt => {
+                        // Simpan data di state lokal
+                        if (!allPromptsData.some(p => p.id === prompt.id)) {
+                             allPromptsData.push(prompt); 
+                        }
+                    });
+
+                    // Hanya render yang baru dimuat
+                    renderAllPrompts();
+                    
+                    loadedCount += prompts.length;
+                    if (prompts.length < PAGE_SIZE) { 
+                        hasMore = false;
+                        document.getElementById('end-message').classList.remove('hidden');
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                displayMessage('error', 'Gagal memuat data: ' + err.message);
+            } finally {
+                isLoading = false;
+                document.getElementById('loading-indicator').classList.add('hidden');
+            }
+        }
+        
+        // --- Filter Logic ---
+        function filterPrompts() {
+            const query = searchInput.value.toLowerCase().trim();
+            
+            // Tampilkan semua jika query kosong
+            if (query === '') {
+                renderAllPrompts(allPromptsData);
+                document.getElementById('observer-target').classList.remove('hidden');
+                if (!hasMore) {
+                    document.getElementById('end-message').classList.remove('hidden');
+                }
+                return;
+            }
+
+            // Sembunyikan Infinite Scroll/End Message saat filtering
+            document.getElementById('observer-target').classList.add('hidden');
+            document.getElementById('end-message').classList.add('hidden');
+
+            const filteredPrompts = allPromptsData.filter(prompt => {
+                const title = prompt.title ? prompt.title.toLowerCase() : '';
+                const content = prompt.content ? prompt.content.toLowerCase() : '';
+                const tags = prompt.tags ? prompt.tags.toLowerCase() : '';
+                
+                return title.includes(query) || content.includes(query) || tags.includes(query);
+            });
+            
+            renderAllPrompts(filteredPrompts);
+        }
+
+        // =========================================================================
+        // RENDERING UI
+        // =========================================================================
+        
+        function renderAllPrompts(dataToRender = allPromptsData) {
+            promptListContainer.innerHTML = ''; 
+            
+            if (dataToRender.length === 0 && searchInput.value.trim() !== '') {
+                promptListContainer.innerHTML = `<p class="text-center text-slate-500 py-10">Tidak ditemukan prompt yang cocok dengan pencarian Anda.</p>`;
+                return;
+            }
+
+            dataToRender.forEach(prompt => {
+                promptListContainer.insertAdjacentHTML('beforeend', getPromptItemHtml(prompt));
+            });
+        }
+        
+        // Fungsi pembantu untuk menghasilkan HTML prompt
+        function getPromptItemHtml(prompt) {
+            const promptId = prompt.id;
+            const title = prompt.title || 'Untitled Prompt';
+            const date = new Date(prompt.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' });
+            const images = prompt.images || [];
+            // Dapatkan tags
+            const tagsString = prompt.tags || '';
+            const tags = tagsString.split(',').map(t => t.trim()).filter(t => t.length > 0);
+
+            // Fungsi render tags
+            const renderTagsHtml = (tagsArray) => {
+                return tagsArray.map(tag => `
+                    <span class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-medium cursor-pointer hover:bg-slate-600 transition" 
+                        onclick="searchInput.value = '${tag}'; filterPrompts(); window.scrollTo(0, 0);">
+                        #${tag}
+                    </span>
+                `).join('');
+            };
+
+            // PERBAIKAN: Escaping yang lebih kuat untuk konten prompt:
+            const escapedContent = prompt.content
+                .replace(/\\/g, '\\\\') 
+                .replace(/'/g, "\\'")
+                .replace(/\r/g, '') 
+                .replace(/\n/g, '\\n');
+
+
+            return `
+                <!-- MENGHAPUS CLASS 'group' DARI KARTU INDUK -->
+                <div id="prompt-card-${promptId}" class="bg-slate-800 rounded-xl overflow-hidden shadow-xl shadow-black/30 transition hover:shadow-cyan-500/10">
+                    
+                    <!-- HEADER -->
+                    <div class="p-4 bg-slate-800/80 border-b border-slate-800 flex justify-between items-start">
+                        <div class="overflow-hidden pr-4 w-full">
+                            <!-- TITLE DISPLAY/EDIT -->
+                            <h3 id="title-display-${promptId}" class="text-xl font-bold text-cyan-400" title="${title}">${title}</h3>
+                            <input id="title-edit-${promptId}" type="text" value="${title}" 
+                                class="hidden w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xl text-cyan-400 font-bold focus:ring-2 focus:ring-cyan-500 outline-none editable-field" />
+                            
+                            <p class="text-xs text-slate-500 mt-1">${date}</p>
+                        </div>
+                        
+                        <div class="flex space-x-2">
+                            <!-- Tombol EDIT -->
+                            <button id="edit-btn-${promptId}" onclick="enterEditMode('${promptId}')" 
+                                class="text-slate-500 hover:text-cyan-500 transition p-1 rounded hover:bg-slate-700/50" title="Edit Prompt, Judul & Tags">
+                                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" 
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" 
+                                class="lucide lucide-pencil-line-icon lucide-pencil-line"><path d="M13 21h8"/><path d="m15 5 4 4"/>
+                                <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>
+                            </button>
+
+                            <!-- Tombol DELETE -->
+                            <button onclick="confirmDeletePrompt('${promptId}')" 
+                                class="text-slate-500 hover:text-red-500 transition p-1 rounded hover:bg-slate-700/50" title="Hapus Prompt & Semua Gambar">
+                                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 6h18"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+                                    <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/>
+                                    <line x1="10" x2="10" y1="11" y2="17"/>
+                                    <line x1="14" x2="14" y1="11" y2="17"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- TAGS (DISPLAY & EDIT) -->
+                    <div id="tags-container-${promptId}" class="px-4 pt-3 pb-2 flex flex-wrap gap-2">
+                        <!-- Tampilan Tags Biasa -->
+                        <div id="tags-display-${promptId}">
+                            ${renderTagsHtml(tags)}
+                        </div>
+                        
+                        <!-- Mode Edit Tags (Hidden by Default) -->
+                        <div id="tags-edit-wrapper-${promptId}" class="hidden w-full">
+                             <input type="text" id="tags-edit-${promptId}" value="${tagsString}" 
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white focus:ring-2 focus:ring-cyan-500 outline-none editable-field"
+                                placeholder="Pisahkan dengan koma: cyberpunk, 3d, niji" />
+                        </div>
+                    </div>
+
+                    <!-- BODY: Prompt Text (TAMBAH CLASS 'group' DI SINI) -->
+                    <div id="prompt-content-section-${promptId}" class="p-4 relative group">
+                        
+                        <!-- NOTIFIKASI COPIED (VISIBILITAS KINI TERGANTUNG HOVER DI DIV INI) -->
+                        <span id="copied-badge-${promptId}" class="hidden absolute top-2 right-2 px-3 py-1 text-xs font-bold text-slate-900 bg-cyan-400 rounded-lg shadow-xl opacity-0 group-hover:opacity-80 transition-opacity duration-300 pointer-events-none z-20">
+                            COPIED!
+                        </span>
+
+                        <!-- DEFAULT VIEW -->
+                        <div id="view-mode-${promptId}">
+                            <!-- Tombol Salin (VISIBILITAS KINI TERGANTUNG HOVER DI DIV INI) -->
+                            <button id="copy-btn-${promptId}" onclick="copyPromptText('${escapedContent}', '${promptId}')" 
+                                class="absolute top-2 right-2 p-1.5 rounded-full bg-slate-700 text-cyan-400 opacity-0 group-hover:opacity-100 transition duration-300 hover:bg-slate-600 z-10"
+                                title="Salin Prompt">
+                                <span id="copy-icon-${promptId}" class="">
+                                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                                    </svg>
+                                </span>
+                            </button>
+                            <p id="prompt-display-${promptId}" class="text-sm text-slate-300 leading-relaxed line-clamp-3 hover:line-clamp-none transition-all cursor-pointer" title="Klik untuk lihat semua">${prompt.content}</p>
+                        </div>
+                        
+                        <!-- EDIT MODE -->
+                        <div id="edit-mode-${promptId}" class="hidden">
+                            <textarea id="prompt-edit-${promptId}" rows="5" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-white focus:ring-2 focus:ring-cyan-500 outline-none transition editable-field">${prompt.content}</textarea>
+                            
+                            <div class="flex justify-end space-x-3 mt-3">
+                                <button onclick="exitEditMode('${promptId}')" 
+                                    class="px-3 py-1 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition text-sm font-medium">Batal</button>
+                                <button onclick="savePromptEdit('${promptId}')" 
+                                    class="px-3 py-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm font-medium">Simpan Perubahan</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GALLERY SECTION -->
+                    <div class="p-4 pt-0 bg-slate-800">
+                        <!-- Toolbar per Prompt -->
+                        <div class="flex justify-between items-center mb-3 pt-4 border-t border-slate-700/50">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">${images.length} Gambar</span>
+                            <div class="flex space-x-2">
+                                <button onclick="toggleSelectAll('${promptId}')" 
+                                    class="p-1 rounded text-cyan-400 hover:bg-cyan-600/30 transition" title="Pilih/Batalkan Semua Gambar">
+                                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-check-icon lucide-check-check"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>
+                                </button>
+                                
+                                <button onclick="handleBatchAction('${promptId}', 'download')" 
+                                    class="p-1 rounded text-emerald-400 hover:bg-emerald-600/30 transition" title="Download Gambar Terpilih">
+                                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                        <polyline points="7 10 12 15 17 10"/>
+                                        <line x1="12" x2="12" y1="15" y2="3"/>
+                                    </svg>
+                                </button>
+                                
+                                <button onclick="handleBatchAction('${promptId}', 'delete')" 
+                                    class="p-1 rounded text-red-500 hover:bg-red-600/30 transition" title="Hapus Gambar Terpilih">
+                                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M3 6h18"/>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+                                        <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/>
+                                        <line x1="10" x2="10" y1="11" y2="17"/>
+                                        <line x1="14" x2="14" y1="11" y2="17"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Image Grid -->
+                        <div id="grid-${promptId}" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                            ${images.map(img => renderImageSubCard(img, promptId)).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Fungsi pembantu untuk menghasilkan HTML sub-card gambar
+        function renderImageSubCard(img, promptId) {
+            const thumbUrl = img.public_thumb_url || img.public_url;
+            
+            return `
+                <div id="img-card-${img.id}" class="group relative bg-slate-900 rounded-lg overflow-hidden transition h-[200px] flex items-center justify-center shadow-lg shadow-black/20 cursor-pointer">
+                    <!-- Image with Click Handler for Modal -->
+                    <img src="${thumbUrl}" 
+                         onerror="this.onerror=null; this.src='https://placehold.co/200x200/1e293b/94a3b8?text=Gagal+Muat+Gambar';"
+                         onclick="openPreviewModal('${img.public_url}', '${img.filename}')"
+                         class="w-full h-full object-contain transition duration-500 group-hover:scale-110" 
+                         loading="lazy"
+                         title="URL Thumbnail Dedikasi: ${thumbUrl}">
+                    
+                    <!-- Overlay Actions -->
+                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex flex-col justify-between p-2">
+                        <div class="flex justify-between">
+                            <input type="checkbox" class="img-checkbox-${promptId} w-4 h-4 rounded border-slate-500 text-cyan-500 focus:ring-0 cursor-pointer" 
+                                data-id="${img.id}" data-path="${img.storage_path}" data-url="${img.public_url}" data-name="${img.filename}">
+                            
+                            <button onclick="event.stopPropagation(); downloadSingle('${img.public_url}', '${img.filename}')" class="text-white hover:text-emerald-400" title="Download Gambar">
+                                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" x2="12" y1="15" y2="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="flex justify-end">
+                            <button onclick="event.stopPropagation(); confirmDeleteImage('${img.id}', '${img.storage_path}', '${img.storage_thumb_path || ''}')" class="text-white hover:text-red-400" title="Hapus Gambar">
+                                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 6h18"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+                                    <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/>
+                                    <line x1="10" x2="10" y1="11" y2="17"/>
+                                    <line x1="14" x2="14" y1="11" y2="17"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- UTILITY: CLIENT-SIDE IMAGE RESIZING ---
+        function resizeImageToBlob(file, maxDimension = 200) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        let width = img.width;
+                        let height = img.height;
+                        const ratio = Math.min(maxDimension / width, maxDimension / height);
+
+                        let newWidth = width * ratio;
+                        let newHeight = height * ratio;
+
+                        canvas.width = newWidth;
+                        canvas.height = newHeight;
+                        ctx.drawImage(img, 0, 0, newWidth, newHeight);
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                resolve(blob);
+                            } else {
+                                reject(new Error('Gagal mengkonversi canvas ke Blob.'));
+                            }
+                        }, 'image/jpeg', 0.8); 
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // --- UPLOAD LOGIC ---
+        async function uploadFileAndSavePrompt() {
+            if (!supabaseClient) return;
+            
+            const files = fileInput.files;
+            const content = promptInput.value.trim();
+            const title = promptTitleInput.value.trim();
+            const tags = promptTagsInput.value.trim(); 
+
+            if (files.length === 0 || !content) {
+                displayMessage('error', 'Pilih minimal satu file dan Prompt wajib diisi.');
+                return;
+            }
+
+            setLoading(true, `Memproses ${files.length} file...`);
+
+            try {
+                // 1. Insert Prompt Record
+                const { data: promptData, error: promptErr } = await supabaseClient
+                    .from('prompts')
+                    .insert([{ title: title, content: content, tags: tags }]) 
+                    .select()
+                    .single();
+                
+                if (promptErr) throw promptErr;
+                const promptId = promptData.id;
+                const uploadedImages = [];
+
+                // 2. Upload Files
+                for (const file of files) {
+                    try {
+                        const fileExt = file.name.split('.').pop();
+                        const uniqueId = Math.random().toString(36).substring(7);
+                        const baseFileName = `${Date.now()}_${uniqueId}`;
+
+                        // Thumb
+                        const thumbBlob = await resizeImageToBlob(file); 
+                        const thumbFileName = `${baseFileName}_thumb.jpeg`; 
+                        const storageThumbPath = `${STORAGE_THUMB_PATH}${thumbFileName}`;
+                        const { error: thumbUploadErr } = await supabaseClient.storage.from(BUCKET_NAME).upload(storageThumbPath, thumbBlob, { contentType: 'image/jpeg' });
+                        if (thumbUploadErr) throw thumbUploadErr;
+                        const publicThumbUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/${storageThumbPath}`;
+
+                        // Full
+                        const fullFileName = `${baseFileName}_full.${fileExt}`;
+                        const storagePath = `${STORAGE_FULL_PATH}${fullFileName}`;
+                        const { error: uploadErr } = await supabaseClient.storage.from(BUCKET_NAME).upload(storagePath, file);
+                        if (uploadErr) throw uploadErr;
+                        const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/${storagePath}`;
+
+                        // DB
+                        const { data: imageData, error: imgErr } = await supabaseClient
+                            .from('images')
+                            .insert([{
+                                prompt_id: promptId,
+                                storage_path: storagePath, 
+                                public_url: publicUrl, 
+                                storage_thumb_path: storageThumbPath, 
+                                public_thumb_url: publicThumbUrl, 
+                                filename: file.name,
+                                filesize: file.size
+                            }])
+                            .select()
+                            .single();
+
+                        if (imgErr) throw imgErr;
+                        uploadedImages.push(imageData);
+                        
+                    } catch (fileError) {
+                        console.error(`Gagal upload file ${file.name}:`, fileError);
+                    }
+                }
+                
+                if (uploadedImages.length > 0) {
+                    const newPrompt = { ...promptData, images: uploadedImages };
+                    allPromptsData.unshift(newPrompt); 
+                    promptListContainer.insertAdjacentHTML('afterbegin', getPromptItemHtml(newPrompt));
+                    loadedCount += 1;
+                    displayMessage('success', `${uploadedImages.length} dari ${files.length} file berhasil disimpan!`);
+                } else {
+                    await supabaseClient.from('prompts').delete().eq('id', promptId);
+                    displayMessage('error', 'Gagal menyimpan semua gambar. Prompt dibatalkan.');
+                }
+
+                // Reset Form
+                fileInput.value = '';
+                promptInput.value = '';
+                promptTitleInput.value = '';
+                promptTagsInput.value = ''; 
+                handleFileInputChange(fileInput);
+
+            } catch (err) {
+                console.error(err);
+                displayMessage('error', 'Gagal menyimpan: ' + err.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // =========================================================================
+        // EDIT LOGIC
+        // =========================================================================
+
+        function enterEditMode(promptId) {
+            // Tampilan Utama (Prompt Text)
+            document.getElementById(`view-mode-${promptId}`).classList.add('hidden');
+            document.getElementById(`edit-mode-${promptId}`).classList.remove('hidden');
+
+            // Tombol Edit
+            document.getElementById(`edit-btn-${promptId}`).classList.add('hidden');
+            
+            // Judul
+            document.getElementById(`title-display-${promptId}`).classList.add('hidden');
+            document.getElementById(`title-edit-${promptId}`).classList.remove('hidden');
+            
+            // TAGS
+            document.getElementById(`tags-display-${promptId}`).classList.add('hidden');
+            document.getElementById(`tags-edit-wrapper-${promptId}`).classList.remove('hidden');
+
+            // Fokus ke textarea prompt
+            document.getElementById(`prompt-edit-${promptId}`).focus();
+        }
+
+        function exitEditMode(promptId) {
+            // Tampilan Utama
+            document.getElementById(`view-mode-${promptId}`).classList.remove('hidden');
+            document.getElementById(`edit-mode-${promptId}`).classList.add('hidden');
+
+            // Tombol Edit
+            document.getElementById(`edit-btn-${promptId}`).classList.remove('hidden');
+            
+            // Judul
+            document.getElementById(`title-display-${promptId}`).classList.remove('hidden');
+            document.getElementById(`title-edit-${promptId}`).classList.add('hidden');
+
+            // TAGS
+            document.getElementById(`tags-display-${promptId}`).classList.remove('hidden');
+            document.getElementById(`tags-edit-wrapper-${promptId}`).classList.add('hidden');
+        }
+
+        async function savePromptEdit(promptId) {
+            const newTitle = document.getElementById(`title-edit-${promptId}`).value.trim();
+            const newContent = document.getElementById(`prompt-edit-${promptId}`).value.trim();
+            const newTags = document.getElementById(`tags-edit-${promptId}`).value.trim();
+            
+            if (!newContent) {
+                return displayMessage('error', 'Prompt tidak boleh kosong!');
+            }
+
+            try {
+                // 1. Update di Supabase
+                const { error } = await supabaseClient
+                    .from('prompts')
+                    .update({ 
+                        title: newTitle, 
+                        content: newContent,
+                        tags: newTags,
+                        created_at: new Date().toISOString() 
+                    })
+                    .eq('id', promptId);
+
+                if (error) throw error;
+                
+                // 2. Update di State Lokal
+                const promptIndex = allPromptsData.findIndex(p => p.id === promptId);
+                if (promptIndex !== -1) {
+                    allPromptsData[promptIndex].title = newTitle;
+                    allPromptsData[promptIndex].content = newContent;
+                    allPromptsData[promptIndex].tags = newTags;
+                }
+
+                // 3. Update di UI (Mode Tampilan)
+                document.getElementById(`title-display-${promptId}`).textContent = newTitle;
+                document.getElementById(`title-display-${promptId}`).title = newTitle;
+                document.getElementById(`prompt-display-${promptId}`).textContent = newContent;
+                
+                // Update tampilan Tags di UI tanpa refresh
+                const tagsArray = newTags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+                const tagsDisplayDiv = document.getElementById(`tags-display-${promptId}`);
+                
+                tagsDisplayDiv.innerHTML = tagsArray.map(tag => `
+                    <span class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-medium cursor-pointer hover:bg-slate-600 transition" 
+                        onclick="searchInput.value = '${tag}'; filterPrompts(); window.scrollTo(0, 0);">
+                        #${tag}
+                    </span>
+                `).join('');
+                
+                // 4. Keluar dari mode edit
+                exitEditMode(promptId);
+                displayMessage('success', 'Prompt berhasil diperbarui!');
+
+            } catch (e) {
+                console.error("Gagal menyimpan edit:", e);
+                displayMessage('error', 'Gagal menyimpan perubahan: ' + e.message);
+            }
+        }
+
+
+        // =========================================================================
+        // ACTION LOGIC (DELETE & DOWNLOAD)
+        // =========================================================================
+        
+        // --- Delete Single Image ---
+        function confirmDeleteImage(imgId, fullPath, thumbPath) {
+            openModal(`Hapus gambar ini?`, async () => {
+                try {
+                    const { error: dbError } = await supabaseClient.from('images').delete().eq('id', imgId);
+                    if (dbError) throw dbError;
+
+                    allPromptsData = allPromptsData.map(p => ({
+                        ...p,
+                        images: p.images.filter(img => img.id !== imgId)
+                    }));
+
+                    const pathsToDelete = [fullPath.replace(`${BUCKET_NAME}/`, '')];
+                    if (thumbPath) pathsToDelete.push(thumbPath.replace(`${BUCKET_NAME}/`, ''));
+                    await supabaseClient.storage.from(BUCKET_NAME).remove(pathsToDelete);
+                    
+                    document.getElementById(`img-card-${imgId}`).remove();
+                    displayMessage('success', 'Gambar dihapus.');
+                } catch (e) {
+                    displayMessage('error', e.message);
+                }
+            });
+        }
+
+        // --- Delete Prompt (Parent) ---
+        function confirmDeletePrompt(promptId) {
+            openModal(`Hapus Prompt ini beserta SEMUA gambarnya?`, async () => {
+                try {
+                    const { data: images } = await supabaseClient.from('images').select('storage_path, storage_thumb_path').eq('prompt_id', promptId);
+                    const paths = [];
+                    if (images && images.length > 0) {
+                        images.forEach(img => {
+                            paths.push(img.storage_path.replace(`${BUCKET_NAME}/`, ''));
+                            if (img.storage_thumb_path) paths.push(img.storage_thumb_path.replace(`${BUCKET_NAME}/`, ''));
+                        });
+                        if (paths.length > 0) {
+                            await supabaseClient.storage.from(BUCKET_NAME).remove(paths);
+                        }
+                    }
+
+                    const { error: promptError } = await supabaseClient.from('prompts').delete().eq('id', promptId);
+                    if (promptError) throw promptError;
+
+                    allPromptsData = allPromptsData.filter(p => p.id !== promptId);
+                    document.getElementById(`prompt-card-${promptId}`).remove();
+                    displayMessage('success', 'Prompt dan gambar berhasil dihapus.');
+                } catch (e) {
+                    console.error(e);
+                    displayMessage('error', 'Gagal menghapus: ' + e.message);
+                }
+            });
+        }
+
+        // --- Batch Actions ---
+        function toggleSelectAll(promptId) {
+            const checkboxes = document.querySelectorAll(`.img-checkbox-${promptId}`);
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            checkboxes.forEach(cb => cb.checked = !allChecked);
+        }
+
+        async function handleBatchAction(promptId, action) {
+            const checkboxes = document.querySelectorAll(`.img-checkbox-${promptId}:checked`);
+            if (checkboxes.length === 0) return displayMessage('error', 'Pilih minimal satu gambar.');
+
+            if (action === 'delete') {
+                openModal(`Hapus ${checkboxes.length} gambar terpilih?`, async () => {
+                    const ids = [];
+                    checkboxes.forEach(cb => ids.push(cb.dataset.id));
+                    
+                    try {
+                        const { data: deletedImages } = await supabaseClient
+                            .from('images')
+                            .delete()
+                            .in('id', ids)
+                            .select('storage_path, storage_thumb_path');
+                        
+                        const allPathsToDelete = [];
+                        if (deletedImages) {
+                             deletedImages.forEach(img => {
+                                allPathsToDelete.push(img.storage_path.replace(`${BUCKET_NAME}/`, '')); 
+                                if (img.storage_thumb_path) allPathsToDelete.push(img.storage_thumb_path.replace(`${BUCKET_NAME}/`, ''));
+                            });
+
+                            if (allPathsToDelete.length > 0) {
+                                await supabaseClient.storage.from(BUCKET_NAME).remove(allPathsToDelete);
+                            }
+                        }
+
+                        allPromptsData = allPromptsData.map(p => ({
+                            ...p,
+                            images: p.images.filter(img => !ids.includes(String(img.id)))
+                        }));
+
+                        checkboxes.forEach(cb => document.getElementById(`img-card-${cb.dataset.id}`).remove());
+                        displayMessage('success', 'Batch hapus berhasil.');
+                    } catch (e) { displayMessage('error', e.message); }
+                });
+            } else if (action === 'download') {
+                const zip = new JSZip();
+                const folder = zip.folder(`Batch-${Date.now()}`);
+                let count = 0;
+
+                displayMessage('success', 'Sedang memproses ZIP...');
+                
+                const promises = Array.from(checkboxes).map(async cb => {
+                    try {
+                        const blob = await fetch(cb.dataset.url).then(r => r.blob()); 
+                        folder.file(cb.dataset.name, blob);
+                        count++;
+                    } catch (e) {
+                        console.error("Gagal fetch untuk ZIP:", e);
+                    }
+                });
+
+                Promise.all(promises).then(async () => {
+                    const content = await zip.generateAsync({type:"blob"});
+                    saveAs(content, `Prompt-Images-${promptId}.zip`);
+                    displayMessage('success', `ZIP berisi ${count} file berhasil diunduh!`);
+                });
+            }
+        }
+
+        // --- Single Download ---
+        async function downloadSingle(url, filename) {
+            try {
+                const blob = await fetch(url).then(r => r.blob());
+                saveAs(blob, filename);
+            } catch(e) { 
+                console.error("Gagal download single:", e);
+                displayMessage('error', 'Gagal mengunduh file.');
+            }
+        }
+
+        // --- Copy Prompt Text (UPDATED) ---
+        function displayMessage(type, msg) {
+            // Fungsi baru untuk menampilkan notifikasi popup sementara
+            const container = document.getElementById('message-container');
+            if(!container) {
+                // Buat container baru jika belum ada
+                const newContainer = document.createElement('div');
+                newContainer.id = 'message-container';
+                newContainer.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none';
+                document.body.appendChild(newContainer);
+            }
+            
+            const toast = document.createElement('div');
+            const color = type === 'error' ? 'bg-red-500/90 text-white' : 'bg-emerald-500/90 text-white';
+            
+            toast.className = `p-4 rounded shadow-lg backdrop-blur-sm transition-all duration-500 transform translate-y-[-20px] opacity-0 ${color} max-w-sm pointer-events-auto`;
+            toast.textContent = msg;
+            
+            document.getElementById('message-container').appendChild(toast);
+            
+            // Animasi masuk
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-[-20px]', 'opacity-0');
+            });
+            
+            // Hapus setelah 3 detik
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-[-20px]');
+                setTimeout(() => {
+                    toast.remove();
+                }, 500); // Waktu untuk transisi CSS
+            }, 3000);
+        }
+
+        // --- UTILS & EVENTS
+        // =========================================================================
+        
+        function setLoading(state, text = 'Loading...') {
+            const btn = document.getElementById('upload-button');
+            const txt = document.getElementById('button-text');
+            const spinner = document.getElementById('loading-spinner');
+            
+            if (state) {
+                btn.disabled = true;
+                txt.textContent = text;
+                spinner.classList.remove('hidden');
+            } else {
+                checkFormValidity();
+                txt.textContent = 'SIMPAN DATA';
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // --- FILE INPUT & D&D HANDLERS ---
+        function handleFileInputChange(input) {
+            const files = input.files;
+            const previewCard = document.getElementById('input-preview-card');
+            const label = document.getElementById('file-label');
+
+            if (files.length > 0) {
+                previewCard.classList.remove('hidden');
+                inputFileCount.textContent = `${files.length} File${files.length > 1 ? 's' : ''} Terpilih`;
+                label.innerHTML = `<span class="text-cyan-400 font-bold">Ganti File (${files.length} terpilih)</span>`;
+                label.classList.add('border-cyan-500');
+            } else {
+                previewCard.classList.add('hidden');
+                inputFileCount.textContent = '0';
+                label.innerHTML = `<span class="text-sm font-medium">Klik untuk Pilih Gambar (Bisa Pilih Banyak)</span><p class="text-xs mt-1">atau Seret & Lepas Gambar ke Sini</p>`;
+                label.classList.remove('border-cyan-500');
+            }
+            checkFormValidity();
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            dropZone.classList.remove('drop-zone-active');
+            const dt = e.dataTransfer;
+            fileInput.files = dt.files;
+            handleFileInputChange(fileInput);
+        }
+
+        function setupDragAndDrop() {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => dropZone.classList.add('drop-zone-active'), false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => dropZone.classList.remove('drop-zone-active'), false);
+            });
+
+            dropZone.addEventListener('drop', handleDrop, false);
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }
+
+        function checkFormValidity() {
+            const valid = fileInput.files.length > 0 && promptInput.value.trim().length > 0;
+            const btn = document.getElementById('upload-button');
+            btn.disabled = !valid;
+            if(valid) btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        document.getElementById('prompt-text').addEventListener('input', checkFormValidity);
+        document.getElementById('upload-button').addEventListener('click', uploadFileAndSavePrompt);
+
+        function setupIntersectionObserver() {
+            const observer = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting && hasMore && !isLoading && searchInput.value.trim() === '') {
+                    loadPrompts();
+                }
+            }, {
+                rootMargin: '100px'
+            });
+            observer.observe(document.getElementById('observer-target'));
+        }
+        
+    </script>
+</body>
+</html>
